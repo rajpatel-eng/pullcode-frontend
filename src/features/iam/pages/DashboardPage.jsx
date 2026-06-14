@@ -1,5 +1,5 @@
-function DashboardPage() {
-    return <h1>IAM Dashboard</h1>;
-}
+import AnalyticsDashboardPage from '../../analytics/pages/AnalyticsDashboardPage';
 
-export default DashboardPage;
+export default function IamDashboardPage() {
+  return <AnalyticsDashboardPage role="iam" />;
+}
