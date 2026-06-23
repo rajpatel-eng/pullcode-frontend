@@ -1,11 +1,16 @@
 import DashboardLayout from '../../../layouts/DashboardLayout';
 import { toggleTheme } from '../../../theme';
+import { tokenStorage } from '../../../services/authService';
 
-const ADMIN_USER = { name: 'Elena Vasquez', email: 'elena@pullcode.io' };
+function getStoredUser() {
+  const email = tokenStorage.getEmail() || '';
+  const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Admin';
+  return { name, email };
+}
 
 export default function SettingsPage() {
   return (
-    <DashboardLayout role="admin" user={ADMIN_USER}>
+    <DashboardLayout role="admin" user={getStoredUser()}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: 'var(--color-textPrimary)' }}>
         Settings
       </h1>

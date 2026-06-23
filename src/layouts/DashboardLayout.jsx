@@ -24,7 +24,11 @@ export default function DashboardLayout({ role = 'admin', user, children }) {
         style={{
           flex: 1,
           padding: '28px 32px',
+          height: '100vh',
           overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
         }}
       >
         {children}

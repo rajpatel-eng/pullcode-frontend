@@ -11,8 +11,11 @@ import AdminDashboard from "../features/admin/pages/DashboardPage";
 import AdminIamManagement from "../features/admin/pages/IamManagementPage";
 import AdminAiModels from "../features/admin/pages/AiModelsPage";
 import AdminSettings from "../features/admin/pages/SettingsPage";
+import AdminAuditLog from "../features/admin/pages/AuditLogPage";
 
-// IAM
+// Analytics
+import AnalyticsDashboard from "../features/analytics/pages/AnalyticsDashboardPage";
+import ModelAnalytics from "../features/analytics/pages/ModelAnalyticsPage";
 import IamDashboard from "../features/iam/pages/DashboardPage";
 import IamAiModels from "../features/iam/pages/AiModelsPage";
 import IamSettings from "../features/iam/pages/SettingsPage";
@@ -31,11 +34,15 @@ function AppRoutes() {
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/admin/iam" element={<AdminIamManagement />} />
                 <Route path="/admin/ai-models" element={<AdminAiModels />} />
+                <Route path="/admin/ai-models/:modelId/analytics" element={<ModelAnalytics />} />
+                <Route path="/admin/analytics" element={<AnalyticsDashboard />} />
                 <Route path="/admin/settings" element={<AdminSettings />} />
+                <Route path="/admin/audit-logs" element={<AdminAuditLog />} />
 
                 {/* IAM user */}
                 <Route path="/iam/dashboard" element={<IamDashboard />} />
                 <Route path="/iam/ai-models" element={<IamAiModels />} />
+                <Route path="/iam/ai-models/:modelId/analytics" element={<ModelAnalytics />} />
                 <Route path="/iam/settings" element={<IamSettings />} />
             </Routes>
         </BrowserRouter>

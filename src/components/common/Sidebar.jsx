@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { logout } from '../../services/authService';
 
 const NAV = {
   admin: [
@@ -40,6 +41,19 @@ const NAV = {
           <circle cx="12" cy="12" r="1.5" />
           <circle cx="16" cy="12" r="1.5" />
           <path d="M8 6V4M12 6V4M16 6V4M8 18v2M12 18v2M16 18v2" />
+        </svg>
+      ),
+    },
+    {
+      id: 'audit',
+      label: 'Audit Logs',
+      path: '/admin/audit-logs',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="13" y2="17" />
         </svg>
       ),
     },
@@ -126,7 +140,16 @@ function Avatar({ name, size = 32 }) {
   );
 }
 
-export default function Sidebar({ role = 'admin', user = { name: 'Elena Vasquez', email: 'elena@pullcode.io' } }) {
+import { tokenStorage } from '../../services/authService';
+
+function getStoredUser() {
+  const email = tokenStorage.getEmail() || '';
+  const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'User';
+  return { name, email };
+}
+
+export default function Sidebar({ role = 'admin', user }) {
+  user = user && user.name ? user : getStoredUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -272,7 +295,7 @@ export default function Sidebar({ role = 'admin', user = { name: 'Elena Vasquez'
             </button>
 
             <button
-              onClick={() => navigate('/login')}
+              onClick={async () => { await logout(); navigate('/login'); }}
               style={{
                 width: '100%',
                 display: 'flex',

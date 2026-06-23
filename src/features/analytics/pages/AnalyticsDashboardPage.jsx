@@ -105,7 +105,8 @@ function TrendChart({ data, color, label, formatter }) {
 // Shared by /admin and /iam routes — pass role explicitly.
 export default function AnalyticsDashboardPage({ role: propRole }) {
   const role = propRole || tokenStorage.getRole() || 'admin';
-  const user = { name: tokenStorage.getEmail() || 'User', email: tokenStorage.getEmail() || '' };
+  const email = tokenStorage.getEmail() || '';
+  const user = { name: email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'User', email };
 
   const [summary, setSummary]       = useState(null);   // SystemAnalyticsSummary
   const [healthList, setHealthList] = useState([]);     // HealthStatusResponse[]

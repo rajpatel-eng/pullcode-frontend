@@ -59,10 +59,6 @@ export async function userRegister(name, email, password, otp) {
   return data;
 }
 
-// ── OAuth2 (Google / GitHub) ───────────────────────────────────────────────────
-// Backend uses Spring OAuth2. We redirect; on success the backend redirects
-// to /login-success?token=<jwt>&refreshToken=<rt>&email=<email>
-// Call handleOAuthCallback() when that page loads.
 export function initiateGoogleLogin() {
   window.location.href = `${BASE}/oauth2/authorize/google?redirect_uri=${encodeURIComponent(window.location.origin + '/login-success')}`;
 }
