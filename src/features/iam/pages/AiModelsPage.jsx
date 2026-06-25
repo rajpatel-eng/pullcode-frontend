@@ -1,5 +1,6 @@
 // IAM AI Models Page — full management access (same as admin)
 import { useState, useEffect, useCallback } from 'react';
+import { useUser } from '../../../context/UserContext'; // ← CHANGED
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../layouts/DashboardLayout';
 import Modal from '../../../components/common/Modal';
@@ -10,7 +11,6 @@ import {
   setDefaultAiModel, deleteAiModel,
 } from '../../../services/aiModelService';
 
-import { tokenStorage } from '../../../services/authService';
 
 function getStoredUser() {
   const email = tokenStorage.getEmail() || '';
@@ -283,6 +283,7 @@ function ModelCard({ model, onChanged, onRemoved, onSetDefault }) {
 }
 
 export default function IamAiModelsPage() {
+  const { user } = useUser(); // ← CHANGED
   const { showSnackbar } = useSnackbar();
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -313,7 +314,7 @@ export default function IamAiModelsPage() {
   });
 
   return (
-    <DashboardLayout role="iam" user={getStoredUser()}>
+    <DashboardLayout role="iam" user={user}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 6 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: 'var(--color-textPrimary)' }}>AI Models</h1>

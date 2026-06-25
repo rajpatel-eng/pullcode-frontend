@@ -10,23 +10,11 @@ import {
   getAllRecommendations, getAiModels, getModelDashboard,
   getUsageTrend, getCostTrend, getPerformanceTrend
 } from '../../../services/analyticsService';
-import { tokenStorage } from '../../../services/authService';
+import { useUser } from '../../../context/UserContext'; // ← CHANGED
 
-const HEALTH_COLOR = {
-  HEALTHY: '#4ade80',
-  DEGRADED: '#fbbf24',
-  UNHEALTHY: '#f87171',
-  UNKNOWN: '#6b7280',
-};
+const HEALTH_COLOR = { HEALTHY: '#4ade80', DEGRADED: '#fbbf24', UNHEALTHY: '#f87171', UNKNOWN: '#6b7280' };
+const SEVERITY_COLOR = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#fbbf24', LOW: '#6b7280' };
 
-const SEVERITY_COLOR = {
-  CRITICAL: '#ef4444',
-  HIGH: '#f97316',
-  MEDIUM: '#fbbf24',
-  LOW: '#6b7280',
-};
-
-// ─── Small reusable components ───────────────────────────────────────────────
 function StatBox({ label, value, sub, color }) {
   return (
     <div style={{ background: 'var(--color-bgSurface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '16px 18px' }}>
@@ -42,19 +30,11 @@ function SectionTitle({ children }) {
 }
 
 function Card({ children, style }) {
-  return (
-    <div style={{ background: 'var(--color-bgSurface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '18px 20px', ...style }}>
-      {children}
-    </div>
-  );
+  return <div style={{ background: 'var(--color-bgSurface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '18px 20px', ...style }}>{children}</div>;
 }
 
 function Badge({ label, color }) {
-  return (
-    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: color + '20', color: color }}>
-      {label}
-    </span>
-  );
+  return <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: color + '20', color: color }}>{label}</span>;
 }
 
 function Spinner() {
@@ -66,25 +46,17 @@ function Spinner() {
   );
 }
 
-// ─── Period selector ─────────────────────────────────────────────────────────
 function PeriodSelector({ value, onChange }) {
   const opts = [['DAYS_7','7d'], ['DAYS_30','30d'], ['DAYS_90','90d'], ['DAYS_365','1y']];
   return (
     <div style={{ display: 'flex', gap: 4 }}>
       {opts.map(([v, l]) => (
-        <button key={v} onClick={() => onChange(v)} style={{
-          padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)',
-          background: value === v ? 'var(--color-accent)' : 'var(--color-bgMuted)',
-          color: value === v ? '#fff' : 'var(--color-textSecondary)',
-          fontSize: 12, cursor: 'pointer', fontWeight: value === v ? 600 : 400,
-        }}>{l}</button>
+        <button key={v} onClick={() => onChange(v)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: value === v ? 'var(--color-accent)' : 'var(--color-bgMuted)', color: value === v ? '#fff' : 'var(--color-textSecondary)', fontSize: 12, cursor: 'pointer', fontWeight: value === v ? 600 : 400 }}>{l}</button>
       ))}
     </div>
   );
 }
 
-// ─── Trend chart ─────────────────────────────────────────────────────────────
-// Backend TrendData = { aiModelId, modelName, metricName, period, points: [{ date, value }] }
 function TrendChart({ data, color, label, formatter }) {
   if (!data?.points?.length) return <div style={{ fontSize: 13, color: 'var(--color-textMuted)', padding: 16, textAlign: 'center' }}>No trend data</div>;
   const points = data.points.map(p => ({ date: p.date, value: p.value }));
@@ -101,20 +73,17 @@ function TrendChart({ data, color, label, formatter }) {
   );
 }
 
-// ─── Main Dashboard ──────────────────────────────────────────────────────────
-// Shared by /admin and /iam routes — pass role explicitly.
 export default function AnalyticsDashboardPage({ role: propRole }) {
-  const role = propRole || tokenStorage.getRole() || 'admin';
-  const email = tokenStorage.getEmail() || '';
-  const user = { name: email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'User', email };
+  const { user } = useUser(); // ← CHANGED: get user (with photoUrl) from context
+  const role = propRole || 'admin';
 
-  const [summary, setSummary]       = useState(null);   // SystemAnalyticsSummary
-  const [healthList, setHealthList] = useState([]);     // HealthStatusResponse[]
-  const [alerts, setAlerts]         = useState([]);     // AlertSummary[]
-  const [recs, setRecs]             = useState([]);     // Recommendation[]
+  const [summary, setSummary]       = useState(null);
+  const [healthList, setHealthList] = useState([]);
+  const [alerts, setAlerts]         = useState([]);
+  const [recs, setRecs]             = useState([]);
   const [models, setModels]         = useState([]);
   const [selectedModel, setSelectedModel] = useState(null);
-  const [modelDash, setModelDash]   = useState(null);   // ModelDashboard
+  const [modelDash, setModelDash]   = useState(null);
   const [period, setPeriod]         = useState('DAYS_30');
   const [usageTrend, setUsageTrend] = useState(null);
   const [costTrend, setCostTrend]   = useState(null);
@@ -123,22 +92,15 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
   const [modelLoading, setModelLoading] = useState(false);
   const [error, setError]           = useState('');
 
-  // Load system-level data on mount
   useEffect(() => {
     async function load() {
       try {
         const [sum, health, al, rec, mdls] = await Promise.all([
-          getSystemSummary(),
-          getAllHealthStatuses(),
-          getAllAlerts(),
-          getAllRecommendations(),
-          getAiModels().catch(() => []),
+          getSystemSummary(), getAllHealthStatuses(), getAllAlerts(),
+          getAllRecommendations(), getAiModels().catch(() => []),
         ]);
-        setSummary(sum);
-        setHealthList(health || []);
-        setAlerts(al || []);
-        setRecs(rec || []);
-        setModels(mdls || []);
+        setSummary(sum); setHealthList(health || []); setAlerts(al || []);
+        setRecs(rec || []); setModels(mdls || []);
         if (mdls?.length) setSelectedModel(mdls[0].id ?? mdls[0].aiModelId);
       } catch (e) {
         setError(e.message);
@@ -149,42 +111,30 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
     load();
   }, []);
 
-  // Load per-model data when model or period changes
   useEffect(() => {
     if (!selectedModel) return;
     async function loadModel() {
       setModelLoading(true);
       try {
         const [dash, usage, cost, perf] = await Promise.all([
-          getModelDashboard(selectedModel),
-          getUsageTrend(selectedModel, period),
-          getCostTrend(selectedModel, period),
-          getPerformanceTrend(selectedModel, period),
+          getModelDashboard(selectedModel), getUsageTrend(selectedModel, period),
+          getCostTrend(selectedModel, period), getPerformanceTrend(selectedModel, period),
         ]);
-        setModelDash(dash);
-        setUsageTrend(usage);
-        setCostTrend(cost);
-        setPerfTrend(perf);
+        setModelDash(dash); setUsageTrend(usage); setCostTrend(cost); setPerfTrend(perf);
       } catch (e) { /* non-fatal */ }
       finally { setModelLoading(false); }
     }
     loadModel();
   }, [selectedModel, period]);
 
-  if (loading) return (
-    <DashboardLayout role={role} user={user}>
-      <Spinner />
-    </DashboardLayout>
-  );
+  if (loading) return <DashboardLayout role={role} user={user}><Spinner /></DashboardLayout>;
 
-  // ── Health pie data (SystemAnalyticsSummary.healthyModels / degradedModels / unhealthyModels) ──
   const healthPie = summary ? [
     { name: 'Healthy',   value: summary.healthyModels,   color: '#4ade80' },
     { name: 'Degraded',  value: summary.degradedModels,  color: '#fbbf24' },
     { name: 'Unhealthy', value: summary.unhealthyModels, color: '#f87171' },
   ].filter(d => d.value > 0) : [];
 
-  // ── Radar data from ModelDashboard.{performance,quality,adoption} ──
   const radarData = modelDash ? [
     { metric: 'Success Rate', value: modelDash.performance?.successRate || 0 },
     { metric: 'Quality',      value: (modelDash.quality?.avgReviewScore || 0) * 10 },
@@ -194,7 +144,7 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
   ] : [];
 
   return (
-    <DashboardLayout role={role} user={user}>
+    <DashboardLayout role={role} user={user}> {/* ← CHANGED: user from context */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-textPrimary)' }}>Analytics</h1>
@@ -202,28 +152,22 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
         </div>
       </div>
 
-      {error && (
-        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', color: '#f87171', fontSize: 13, marginBottom: 16, marginTop: 12 }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', color: '#f87171', fontSize: 13, marginBottom: 16, marginTop: 12 }}>{error}</div>}
 
-      {/* ── System Summary ── */}
       {summary && (
         <>
           <SectionTitle>System Overview</SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
             <StatBox label="Total Models"    value={summary.totalModels}        sub={`${summary.activeModels} active`} />
-            <StatBox label="Reviews Today"   value={summary.totalReviewsToday?.toLocaleString()}  />
+            <StatBox label="Reviews Today"   value={summary.totalReviewsToday?.toLocaleString()} />
             <StatBox label="Reviews / Month" value={summary.totalReviewsThisMonth?.toLocaleString()} />
             <StatBox label="Cost / Month"    value={summary.totalCostThisMonth != null ? `$${summary.totalCostThisMonth}` : '—'} />
-            <StatBox label="Open Alerts"     value={summary.unresolvedAlerts}   color={summary.unresolvedAlerts > 0 ? '#f87171' : undefined} />
+            <StatBox label="Open Alerts"     value={summary.unresolvedAlerts} color={summary.unresolvedAlerts > 0 ? '#f87171' : undefined} />
             <StatBox label="Best Performer"  value={summary.bestPerformingModel || '—'} sub="by success rate" />
             <StatBox label="Most Used"       value={summary.mostUsedModel || '—'} />
             <StatBox label="Cost Efficient"  value={summary.mostCostEfficientModel || '—'} />
           </div>
 
-          {/* Health pie + health list */}
           <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 14, marginTop: 14 }}>
             <Card>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Model Health</div>
@@ -247,9 +191,7 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderRadius: 7, background: 'var(--color-bgMuted)' }}>
                     <span style={{ fontSize: 13, color: 'var(--color-textPrimary)', fontWeight: 500 }}>{h.modelName}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: 'var(--color-textSecondary)' }}>
-                        {h.successRateLast1h != null ? `${h.successRateLast1h.toFixed(1)}% success` : ''}
-                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--color-textSecondary)' }}>{h.successRateLast1h != null ? `${h.successRateLast1h.toFixed(1)}% success` : ''}</span>
                       <Badge label={h.status} color={HEALTH_COLOR[h.status] || '#6b7280'} />
                     </div>
                   </div>
@@ -261,16 +203,11 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
         </>
       )}
 
-      {/* ── Per-model analytics ── */}
       {models.length > 0 && (
         <>
           <SectionTitle>Model Deep-Dive</SectionTitle>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-            <select
-              value={selectedModel || ''}
-              onChange={e => setSelectedModel(Number(e.target.value))}
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bgMuted)', color: 'var(--color-textPrimary)', fontSize: 13, cursor: 'pointer' }}
-            >
+            <select value={selectedModel || ''} onChange={e => setSelectedModel(Number(e.target.value))} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bgMuted)', color: 'var(--color-textPrimary)', fontSize: 13, cursor: 'pointer' }}>
               {models.map(m => <option key={m.id ?? m.aiModelId} value={m.id ?? m.aiModelId}>{m.name || m.modelName || `Model ${m.id ?? m.aiModelId}`}</option>)}
             </select>
             <PeriodSelector value={period} onChange={setPeriod} />
@@ -280,7 +217,6 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
 
           {!modelLoading && modelDash && (
             <>
-              {/* KPI row — fields from UsageMetrics, PerformanceMetrics, QualityMetrics, CostMetrics, AdoptionMetrics */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 14 }}>
                 <StatBox label="Total Reviews"    value={modelDash.usage?.totalReviews?.toLocaleString()} />
                 <StatBox label="Reviews Today"    value={modelDash.usage?.reviewsToday?.toLocaleString()} />
@@ -292,23 +228,12 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
                 <StatBox label="Market Share"     value={`${(modelDash.adoption?.marketSharePercentage || 0).toFixed(1)}%`} />
               </div>
 
-              {/* Trend charts — TrendData.points[].{date,value} */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14, marginBottom: 14 }}>
-                <Card>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Usage Trend</div>
-                  <TrendChart data={usageTrend} color="#3b82f6" label="Reviews" />
-                </Card>
-                <Card>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Cost Trend</div>
-                  <TrendChart data={costTrend} color="#10b981" label="Cost" formatter={v => `$${Number(v).toFixed(2)}`} />
-                </Card>
-                <Card>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Response Time Trend</div>
-                  <TrendChart data={perfTrend} color="#f59e0b" label="ms" formatter={v => `${v.toFixed(0)}ms`} />
-                </Card>
+                <Card><div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Usage Trend</div><TrendChart data={usageTrend} color="#3b82f6" label="Reviews" /></Card>
+                <Card><div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Cost Trend</div><TrendChart data={costTrend} color="#10b981" label="Cost" formatter={v => `$${Number(v).toFixed(2)}`} /></Card>
+                <Card><div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Response Time Trend</div><TrendChart data={perfTrend} color="#f59e0b" label="ms" formatter={v => `${v.toFixed(0)}ms`} /></Card>
               </div>
 
-              {/* Radar + token usage */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <Card>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Quality Radar</div>
@@ -323,16 +248,11 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
                     </ResponsiveContainer>
                   ) : <div style={{ color: 'var(--color-textMuted)', textAlign: 'center', padding: 24, fontSize: 13 }}>No quality data</div>}
                 </Card>
-
                 <Card>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: 'var(--color-textPrimary)' }}>Token Usage</div>
                   {modelDash.usage ? (
                     <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={[
-                        { name: 'Input',  tokens: modelDash.usage.inputTokens || 0 },
-                        { name: 'Output', tokens: modelDash.usage.outputTokens || 0 },
-                        { name: 'Total',  tokens: modelDash.usage.totalTokens || 0 },
-                      ]} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
+                      <BarChart data={[{ name: 'Input', tokens: modelDash.usage.inputTokens || 0 }, { name: 'Output', tokens: modelDash.usage.outputTokens || 0 }, { name: 'Total', tokens: modelDash.usage.totalTokens || 0 }]} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--color-textSecondary)' }} tickLine={false} />
                         <YAxis tick={{ fontSize: 10, fill: 'var(--color-textMuted)' }} tickLine={false} axisLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
@@ -344,7 +264,6 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
                 </Card>
               </div>
 
-              {/* Recommendations from ModelDashboard.recommendations (List<String>) */}
               {modelDash.recommendations?.length > 0 && (
                 <Card style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--color-textPrimary)' }}>Model Recommendations</div>
@@ -363,7 +282,6 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
         </>
       )}
 
-      {/* ── Alerts (AlertSummary[]) ── */}
       {alerts.length > 0 && (
         <>
           <SectionTitle>Active Alerts</SectionTitle>
@@ -375,9 +293,7 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-textPrimary)' }}>{a.modelName} — {String(a.alertType || '').replace(/_/g, ' ')}</div>
                     <div style={{ fontSize: 12, color: 'var(--color-textSecondary)', marginTop: 2 }}>{a.message}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                    <Badge label={a.severity} color={SEVERITY_COLOR[a.severity] || '#6b7280'} />
-                  </div>
+                  <Badge label={a.severity} color={SEVERITY_COLOR[a.severity] || '#6b7280'} />
                 </div>
               ))}
             </div>
@@ -385,7 +301,6 @@ export default function AnalyticsDashboardPage({ role: propRole }) {
         </>
       )}
 
-      {/* ── Global Recommendations (Recommendation[]) ── */}
       {recs.length > 0 && (
         <>
           <SectionTitle>Recommendations</SectionTitle>

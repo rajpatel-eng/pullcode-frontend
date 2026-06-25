@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useUser } from '../../../context/UserContext'; // ← CHANGED
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../layouts/DashboardLayout';
 import Modal from '../../../components/common/Modal';
@@ -8,13 +9,8 @@ import {
   rotateAiModelApiKey, pauseAiModel, resumeAiModel,
   setDefaultAiModel, deleteAiModel,
 } from '../../../services/aiModelService';
-import { tokenStorage } from '../../../services/authService';
 
-function getStoredUser() {
-  const email = tokenStorage.getEmail() || '';
-  const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Admin';
-  return { name, email };
-}
+
 
 // ── Shared style tokens (mirrors IamManagementPage exactly) ──────────────────
 const fieldLabelStyle = {
@@ -631,6 +627,7 @@ function ModelCard({ model, onChanged, onRemoved, onSetDefault, isAdminRole = tr
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AdminAiModelsPage() {
+  const { user } = useUser(); // ← CHANGED
   const { showSnackbar } = useSnackbar();
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -673,7 +670,8 @@ export default function AdminAiModelsPage() {
   });
 
   return (
-    <DashboardLayout role="admin" user={getStoredUser()}>
+    // user injected below via useUser()
+    <DashboardLayout role="admin" user={user}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 6 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: 'var(--color-textPrimary)' }}>

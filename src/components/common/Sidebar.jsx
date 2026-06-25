@@ -112,20 +112,23 @@ const NAV = {
   ],
 };
 
-function Avatar({ name, size = 32 }) {
-  const initials = name
+// ← CHANGED: Avatar now accepts `src` for photo; falls back to initials
+function Avatar({ name, src, size = 32 }) {
+  const initials = (name || '?')
     .split(' ')
     .map((w) => w[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
   return (
     <div
       style={{
         width: size,
         height: size,
         borderRadius: '50%',
-        background: 'var(--color-accent)',
+        background: src ? 'transparent' : 'var(--color-accent)',
+        border: src ? '1.5px solid var(--color-border)' : 'none',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -133,9 +136,12 @@ function Avatar({ name, size = 32 }) {
         fontWeight: 700,
         color: '#fff',
         flexShrink: 0,
+        overflow: 'hidden', // ← CHANGED: needed to clip the img to circle
       }}
     >
-      {initials}
+      {src
+        ? <img src={src} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> // ← CHANGED
+        : initials}
     </div>
   );
 }
@@ -145,7 +151,7 @@ import { tokenStorage } from '../../services/authService';
 function getStoredUser() {
   const email = tokenStorage.getEmail() || '';
   const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'User';
-  return { name, email };
+  return { name, email, photoUrl: null }; // ← CHANGED: include photoUrl
 }
 
 export default function Sidebar({ role = 'admin', user }) {
@@ -183,7 +189,6 @@ export default function Sidebar({ role = 'admin', user }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Brand icon */}
           <div
             style={{
               width: 34,
@@ -256,7 +261,6 @@ export default function Sidebar({ role = 'admin', user }) {
       </nav>
 
       <div style={{ padding: '10px 10px 14px', borderTop: '1px solid var(--color-border)' }}>
-        {/* Expandable panel */}
         {profileOpen && (
           <div
             style={{
@@ -324,6 +328,7 @@ export default function Sidebar({ role = 'admin', user }) {
           </div>
         )}
 
+        {/* ← CHANGED: pass src={user.photoUrl} so the photo shows in bottom-left */}
         <button
           onClick={() => setProfileOpen((o) => !o)}
           style={{
@@ -341,7 +346,7 @@ export default function Sidebar({ role = 'admin', user }) {
             transition: 'background 0.15s',
           }}
         >
-          <Avatar name={user.name} size={30} />
+          <Avatar name={user.name} src={user.photoUrl} size={30} /> {/* ← CHANGED */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-textPrimary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user.name}
@@ -350,7 +355,6 @@ export default function Sidebar({ role = 'admin', user }) {
               {role === 'admin' ? 'Admin' : 'IAM User'}
             </div>
           </div>
-          {/* Chevron */}
           <svg
             width="13"
             height="13"

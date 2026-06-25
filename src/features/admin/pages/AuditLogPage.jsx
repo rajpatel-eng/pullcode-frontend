@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import DashboardLayout from '../../../layouts/DashboardLayout';
 import { getAuditLogs } from '../../../services/auditLogService';
 
-import { tokenStorage } from '../../../services/authService';
-function getStoredUser() { const email = tokenStorage.getEmail() || ''; const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Admin'; return { name, email }; }
+import { useUser } from '../../../context/UserContext'; // ← CHANGED
 
 const ACTION_OPTIONS = [
   'IAM_CREATED', 'IAM_UPDATED', 'IAM_PAUSED', 'IAM_RESUMED', 'IAM_DELETED', 'IAM_PASSWORD_RESET',
@@ -100,6 +99,7 @@ const labelStyle = {
 };
 
 export default function AuditLogPage() {
+  const { user } = useUser(); // ← CHANGED
   const [logs, setLogs] = useState([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -167,7 +167,7 @@ export default function AuditLogPage() {
   const hasFilters = action || actorId || entityType || entityId || from || to;
 
   return (
-    <DashboardLayout role="admin" user={getStoredUser()}>
+    <DashboardLayout role="admin" user={user}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         {/* Fixed header section */}
         <div style={{ flexShrink: 0 }}>

@@ -7,8 +7,7 @@ import {
   resetIamPassword, pauseIamUser, resumeIamUser, deleteIamUser,
 } from '../../../services/iamService';
 
-import { tokenStorage } from '../../../services/authService';
-function getStoredUser() { const email = tokenStorage.getEmail() || ''; const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Admin'; return { name, email }; }
+import { useUser } from '../../../context/UserContext'; // ← CHANGED
 
 const STATUS_ORDER = { ACTIVE: 0, PAUSED: 1, DELETED: 2 };
 
@@ -18,20 +17,51 @@ const STATUS_STYLE = {
   DELETED: { bg: 'rgba(248,113,113,0.12)', color: '#f87171', label: 'Deleted' },
 };
 
-function Avatar({ name, size = 40 }) {
+function Avatar({ name, src, size = 40 }) {
   const initials = (name || '?')
     .split(' ')
     .map((w) => w[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          flexShrink: 0,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-bgMuted)',
+        }}
+        onError={(e) => {
+          e.target.style.display = 'none';
+          const fallback = e.target.nextSibling;
+          if (fallback) fallback.style.display = 'flex';
+        }}
+      />
+    );
+  }
+
   return (
     <div
       style={{
-        width: size, height: size, borderRadius: '50%',
+        width: size,
+        height: size,
+        borderRadius: '50%',
         background: 'var(--color-accent)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: size * 0.38, fontWeight: 700, color: '#fff', flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: size * 0.38,
+        fontWeight: 700,
+        color: '#fff',
+        flexShrink: 0,
       }}
     >
       {initials}
@@ -337,7 +367,10 @@ function IamCard({ user, onChanged }) {
     }}>
       {/* ── Header row: avatar + info + status badge + action buttons ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Avatar name={user.name} />
+        <Avatar
+          name={user.name}
+          src={user.avatarUrl}
+        />
 
         {/* name + email */}
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -483,6 +516,7 @@ function IamCard({ user, onChanged }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function IamManagementPage() {
+  const { user } = useUser(); // ← CHANGED
   const { showSnackbar } = useSnackbar();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -521,7 +555,7 @@ export default function IamManagementPage() {
   });
 
   return (
-    <DashboardLayout role="admin" user={getStoredUser()}>
+    <DashboardLayout role="admin" user={user}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 6 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: 'var(--color-textPrimary)' }}>

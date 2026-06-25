@@ -2,6 +2,42 @@ import { tokenStorage, refreshAccessToken } from './authService';
 
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+/**
+ * Read an error response safely.
+ * Supports both JSON and plain-text responses.
+ */
+async function safeParseError(res) {
+  const raw = await res.text().catch(() => '');
+
+  if (!raw) {
+    return { message: 'Request failed' };
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { message: raw };
+  }
+}
+
+/**
+ * Read a successful response safely.
+ * Supports JSON, plain text, and empty responses.
+ */
+async function safeParseSuccess(res) {
+  const raw = await res.text().catch(() => '');
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
 async function authFetch(path, options = {}) {
   const doFetch = (token) =>
     fetch(`${BASE}${path}`, {
@@ -27,15 +63,21 @@ async function authFetch(path, options = {}) {
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const err = await safeParseError(res);
     throw new Error(err.message || err.error || 'IAM request failed');
   }
 
-  if (res.status === 204) return null;
-  return res.json();
+  if (res.status === 204) {
+    return null;
+  }
+
+  return await safeParseSuccess(res);
 }
 
-// ── IAM Management ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// IAM Management
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const listIamUsers = (page = 0, size = 100) =>
   authFetch(`/api/admin/iam?page=${page}&size=${size}`);
 
@@ -67,10 +109,16 @@ export const resetIamPassword = (id, newPassword) =>
   });
 
 export const pauseIamUser = (id) =>
-  authFetch(`/api/admin/iam/${id}/pause`, { method: 'POST' });
+  authFetch(`/api/admin/iam/${id}/pause`, {
+    method: 'POST',
+  });
 
 export const resumeIamUser = (id) =>
-  authFetch(`/api/admin/iam/${id}/resume`, { method: 'POST' });
+  authFetch(`/api/admin/iam/${id}/resume`, {
+    method: 'POST',
+  });
 
 export const deleteIamUser = (id) =>
-  authFetch(`/api/admin/iam/${id}`, { method: 'DELETE' });
+  authFetch(`/api/admin/iam/${id}`, {
+    method: 'DELETE',
+  });

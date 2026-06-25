@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import Sidebar from '../components/common/Sidebar';
 import { applyTheme, getStoredTheme } from '../theme';
 
-
+// user prop shape: { name, email, photoUrl }
+// photoUrl flows from ProfilePage → DashboardLayout → Sidebar → Avatar
 export default function DashboardLayout({ role = 'admin', user, children }) {
   useEffect(() => {
     applyTheme(getStoredTheme());
@@ -18,7 +19,7 @@ export default function DashboardLayout({ role = 'admin', user, children }) {
         fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
       }}
     >
-      <Sidebar role={role} user={user} />
+      <Sidebar role={role} user={user} />  {/* photoUrl inside user reaches Sidebar automatically */}
 
       <main
         style={{
