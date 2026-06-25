@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AdminUserProvider, IamUserProvider } from "../context/UserContext"; // ← CHANGED
+import { AdminUserProvider, IamUserProvider, UserUserProvider } from "../context/UserContext";
+import { ProjectProvider } from "../context/ProjectContext";
 
 // Auth
 import LoginPage from "../features/auth/pages/LoginPage";
@@ -25,6 +26,11 @@ import IamAiModels from "../features/iam/pages/AiModelsPage";
 import IamSettings from "../features/iam/pages/SettingsPage";
 import IamProfile from "../features/iam/pages/ProfilePage";
 
+// Regular user — new project-centric UI
+import UserDashboard from "../features/user/pages/DashboardPage";
+import UserProfile from "../features/user/pages/ProfilePage";
+import ProjectDetailPage from "../features/user/pages/ProjectDetailPage";
+
 function AppRoutes() {
   return (
     <BrowserRouter>
@@ -35,8 +41,7 @@ function AppRoutes() {
         <Route path="/management/login" element={<ManagementLoginPage />} />
         <Route path="/login-success" element={<OAuthCallbackPage />} />
 
-        {/* ── Admin routes — all wrapped in AdminUserProvider ── */}
-        {/* CHANGED: wrap admin routes so every page shares the same user/photo */}
+        {/* ── Admin routes ── */}
         <Route path="/admin/*" element={
           <AdminUserProvider>
             <Routes>
@@ -52,8 +57,7 @@ function AppRoutes() {
           </AdminUserProvider>
         } />
 
-        {/* ── IAM routes — all wrapped in IamUserProvider ── */}
-        {/* CHANGED: wrap iam routes so every page shares the same user/photo */}
+        {/* ── IAM routes ── */}
         <Route path="/iam/*" element={
           <IamUserProvider>
             <Routes>
@@ -64,6 +68,19 @@ function AppRoutes() {
               <Route path="profile" element={<IamProfile />} />
             </Routes>
           </IamUserProvider>
+        } />
+
+        {/* ── User routes — project-centric sidebar ── */}
+        <Route path="/user/*" element={
+          <UserUserProvider>
+            <ProjectProvider>
+              <Routes>
+                <Route path="dashboard" element={<UserDashboard />} />
+                <Route path="projects/:id" element={<ProjectDetailPage />} />
+                <Route path="profile" element={<UserProfile />} />
+              </Routes>
+            </ProjectProvider>
+          </UserUserProvider>
         } />
       </Routes>
     </BrowserRouter>
