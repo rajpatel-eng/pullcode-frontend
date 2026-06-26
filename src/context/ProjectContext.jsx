@@ -1,11 +1,17 @@
-/**
- * ProjectContext — fetches user repositories and makes them available
- * to the user sidebar and pages. Projects are FIFO-ordered (newest first).
- */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { tokenStorage, SESSION_EXPIRED_ERROR } from '../services/authService';
 import { getMyRepositories } from '../services/repositoryService';
 
 const ProjectContext = createContext(null);
+
+function isJustAfterOAuth() {
+  const ref = document.referrer;
+  return (
+    ref.includes('/login-success') ||
+    ref.includes('/oauth2/') ||
+    window.location.search.includes('token=')
+  );
+}
 
 export function ProjectProvider({ children }) {
   const [projects, setProjects] = useState([]);
@@ -16,14 +22,23 @@ export function ProjectProvider({ children }) {
     setLoading(true);
     try {
       const data = await getMyRepositories();
-      // FIFO: newest first (sorted by createdAt descending)
       const sorted = [...(data || [])].sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
       );
       setProjects(sorted);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      if (err?.message === SESSION_EXPIRED_ERROR) {
+        if (isJustAfterOAuth()) {
+          console.warn('[ProjectContext] 401 during post-OAuth load — skipping redirect');
+          setError(null);
+        } else {
+          tokenStorage.clear();
+          window.location.replace('/user/login');
+        }
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }

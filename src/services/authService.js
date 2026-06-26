@@ -1,74 +1,99 @@
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+/**
+ * src/services/authService.js
+ *
+ * Token storage + all auth API calls (login, register, OTP, refresh, logout).
+ *
+ * NOTE: Token refresh on 401 is handled automatically by the Axios interceptor
+ * in api.js — these functions are only for explicit auth actions.
+ */
 
-const KEYS = {
+import axios from 'axios';
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+
+// ── Storage key constants (exported so api.js can write tokens on refresh) ────
+export const TOKEN_KEYS = {
   ACCESS:  'pc_access_token',
   REFRESH: 'pc_refresh_token',
   ROLE:    'pc_user_role',
   EMAIL:   'pc_user_email',
 };
 
-// ── Storage helpers ────────────────────────────────────────────────────────────
+// ── Token storage helpers ─────────────────────────────────────────────────────
 export const tokenStorage = {
   save(accessToken, refreshToken, email, role) {
-    localStorage.setItem(KEYS.ACCESS,  accessToken);
-    localStorage.setItem(KEYS.REFRESH, refreshToken);
-    localStorage.setItem(KEYS.EMAIL,   email);
-    localStorage.setItem(KEYS.ROLE,    role);
+    localStorage.setItem(TOKEN_KEYS.ACCESS,  accessToken);
+    localStorage.setItem(TOKEN_KEYS.REFRESH, refreshToken);
+    localStorage.setItem(TOKEN_KEYS.EMAIL,   email  || '');
+    localStorage.setItem(TOKEN_KEYS.ROLE,    role   || '');
   },
   clear() {
-    Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+    Object.values(TOKEN_KEYS).forEach((k) => localStorage.removeItem(k));
   },
-  getAccess()  { return localStorage.getItem(KEYS.ACCESS);  },
-  getRefresh() { return localStorage.getItem(KEYS.REFRESH); },
-  getRole()    { return localStorage.getItem(KEYS.ROLE);    },
-  getEmail()   { return localStorage.getItem(KEYS.EMAIL);   },
-  isLoggedIn() { return !!localStorage.getItem(KEYS.ACCESS); },
+  getAccess()  { return localStorage.getItem(TOKEN_KEYS.ACCESS);  },
+  getRefresh() { return localStorage.getItem(TOKEN_KEYS.REFRESH); },
+  getRole()    { return localStorage.getItem(TOKEN_KEYS.ROLE);    },
+  getEmail()   { return localStorage.getItem(TOKEN_KEYS.EMAIL);   },
+  isLoggedIn() { return !!localStorage.getItem(TOKEN_KEYS.ACCESS); },
 };
 
-// ── HTTP helper ────────────────────────────────────────────────────────────────
-async function post(path, body, auth = false) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (auth) headers['Authorization'] = `Bearer ${tokenStorage.getAccess()}`;
+// ── Sentinel error string used by UserContext ─────────────────────────────────
+export const SESSION_EXPIRED_ERROR = 'SESSION_EXPIRED';
 
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+// ── Raw axios instance for public auth calls (no interceptor loop risk) ───────
+const authAxios = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' },
+});
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || 'Request failed');
-  return data;
+function extractError(err) {
+  const d = err?.response?.data;
+  return new Error(d?.message || d?.error || err?.message || 'Request failed');
 }
 
-// ── Normal user: email + password login ────────────────────────────────────────
+// ── Normal user: email + password login ──────────────────────────────────────
 export async function userLogin(email, password) {
-  const data = await post('/api/auth/login', { email, password });
-  tokenStorage.save(data.accessToken, data.refreshToken, data.email, 'user');
-  return data;
+  try {
+    const { data } = await authAxios.post('/api/auth/login', { email, password });
+    tokenStorage.save(data.accessToken, data.refreshToken, data.email, 'user');
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
 }
 
-// ── Normal user: register (requires OTP) ──────────────────────────────────────
+// ── Normal user: OTP + registration ──────────────────────────────────────────
 export async function userSendOtp(email) {
-  return post('/api/auth/send-otp', { email });
+  try {
+    const { data } = await authAxios.post('/api/auth/send-otp', { email });
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
 }
 
 export async function userRegister(name, email, password, otp) {
-  const data = await post('/api/auth/register', { name, email, password, otp });
-  tokenStorage.save(data.accessToken, data.refreshToken, data.email, 'user');
-  return data;
+  try {
+    const { data } = await authAxios.post('/api/auth/register', { name, email, password, otp });
+    tokenStorage.save(data.accessToken, data.refreshToken, data.email, 'user');
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
 }
 
+// ── OAuth (Google / GitHub) ───────────────────────────────────────────────────
 export function initiateGoogleLogin() {
-  window.location.href = `${BASE}/oauth2/authorize/google?redirect_uri=${encodeURIComponent(window.location.origin + '/login-success')}`;
+  window.location.href = `${BASE_URL}/oauth2/authorize/google?redirect_uri=${encodeURIComponent(window.location.origin + '/login-success')}`;
 }
 
 export function initiateGithubLogin() {
-  window.location.href = `${BASE}/oauth2/authorize/github?redirect_uri=${encodeURIComponent(window.location.origin + '/login-success')}`;
+  window.location.href = `${BASE_URL}/oauth2/authorize/github?redirect_uri=${encodeURIComponent(window.location.origin + '/login-success')}`;
 }
 
 export function handleOAuthCallback() {
-  const params = new URLSearchParams(window.location.search);
+  const params       = new URLSearchParams(window.location.search);
   const accessToken  = params.get('token');
   const refreshToken = params.get('refreshToken');
   const email        = params.get('email');
@@ -80,34 +105,82 @@ export function handleOAuthCallback() {
   return false;
 }
 
-// ── Admin / IAM: step 1 — email + password → preAuthToken ─────────────────────
+// ── Admin / IAM: step 1 — email + password → preAuthToken ────────────────────
 export async function adminLogin(email, password) {
-  // Returns { preAuthToken, message }
-  return post('/api/admin/auth/login', { email, password });
+  try {
+    const { data } = await authAxios.post('/api/admin/auth/login', { email, password });
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
 }
 
-// ── Admin / IAM: step 2 — verify OTP → full JWT ───────────────────────────────
+// ── Admin / IAM: step 2 — verify OTP → full JWT ──────────────────────────────
 export async function adminVerifyOtp(preAuthToken, otp, role = 'admin') {
-  const data = await post('/api/admin/auth/verify-otp', { preAuthToken, otp });
-  // backend returns AuthResponse { accessToken, refreshToken, email }
-  tokenStorage.save(data.accessToken, data.refreshToken, data.email, role);
-  return data;
+  try {
+    const { data } = await authAxios.post('/api/admin/auth/verify-otp', { preAuthToken, otp });
+    tokenStorage.save(data.accessToken, data.refreshToken, data.email, role);
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
 }
 
-// ── Refresh token ──────────────────────────────────────────────────────────────
+// ── Refresh (called directly only from api.js interceptor, but exported
+//    so legacy code still compiles) ───────────────────────────────────────────
 export async function refreshAccessToken() {
   const refreshToken = tokenStorage.getRefresh();
   if (!refreshToken) throw new Error('No refresh token');
-  const data = await post('/api/auth/refresh', { refreshToken });
-  localStorage.setItem(KEYS.ACCESS, data.accessToken);
-  if (data.refreshToken) localStorage.setItem(KEYS.REFRESH, data.refreshToken);
-  return data;
+
+  try {
+    const { data } = await authAxios.post('/api/auth/refresh', { refreshToken });
+    localStorage.setItem(TOKEN_KEYS.ACCESS, data.accessToken);
+    if (data.refreshToken) localStorage.setItem(TOKEN_KEYS.REFRESH, data.refreshToken);
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
 }
 
-// ── Logout ─────────────────────────────────────────────────────────────────────
+// ── Forgot password ───────────────────────────────────────────────────────────
+export async function forgotPasswordSendOtp(email) {
+  try {
+    const { data } = await authAxios.post('/api/auth/forgot-password/send-otp', { email });
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
+}
+
+export async function forgotPasswordReset(email, otp, newPassword) {
+  try {
+    const { data } = await authAxios.post('/api/auth/forgot-password/reset', { email, otp, newPassword });
+    return data;
+  } catch (err) {
+    throw extractError(err);
+  }
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+// Calls the backend to invalidate the refresh token, then clears storage.
 export async function logout() {
   try {
-    await post('/api/auth/logout', {}, true);
-  } catch (_) { /* ignore */ }
+    const token = tokenStorage.getAccess();
+    await authAxios.post(
+      '/api/auth/logout',
+      {},
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    );
+  } catch (_) {
+    // Ignore backend errors on logout — we clear local state regardless
+  } finally {
+    tokenStorage.clear();
+  }
+}
+
+// ── Session-expired helper (used by UserContext) ──────────────────────────────
+export function handleSessionExpired() {
   tokenStorage.clear();
+  const isUser = window.location.pathname.startsWith('/user');
+  window.location.replace(isUser ? '/user/login' : '/management/login');
 }

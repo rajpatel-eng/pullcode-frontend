@@ -1,10 +1,6 @@
-/**
- * UserContext — fetches the current user's profile once on mount and makes
- * { name, email, photoUrl } available to every page via useUser().
- */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { tokenStorage } from '../services/authService';
-import { adminGetProfile, iamGetProfile } from '../services/profileService';
+import { tokenStorage, SESSION_EXPIRED_ERROR } from '../services/authService';
+import { adminGetProfile, iamGetProfile, userGetProfile } from '../services/profileService';
 
 const UserContext = createContext(null);
 
@@ -18,12 +14,44 @@ function buildFallback() {
   return { name, email, photoUrl: null };
 }
 
+// Returns true if we arrived here just after an OAuth redirect
+// (the URL will contain ?token= or we came from /login-success via replace).
+// In that case we give a grace period before treating 401 as "session expired".
+function isJustAfterOAuth() {
+  const ref = document.referrer;
+  return (
+    ref.includes('/login-success') ||
+    ref.includes('/oauth2/') ||
+    window.location.search.includes('token=')
+  );
+}
+
+function makeProviderErrorHandler(redirectPath) {
+  return function handleError(err) {
+    if (err?.message !== SESSION_EXPIRED_ERROR) {
+      // Non-auth error (network, 500, etc.) — stay on current page
+      return;
+    }
+    // Genuine session expiry — but only redirect if we're NOT in a
+    // post-OAuth grace window. Right after OAuth the localStorage tokens
+    // may not yet be committed; the cookie auth handles it transparently.
+    if (isJustAfterOAuth()) {
+      console.warn('[UserContext] 401 during post-OAuth load — skipping redirect, cookie auth active');
+      return;
+    }
+    // Confirmed expired session — send to login
+    tokenStorage.clear();
+    const isUser = window.location.pathname.startsWith('/user');
+    window.location.replace(isUser ? '/user/login' : '/management/login');
+  };
+}
+
 export function AdminUserProvider({ children }) {
   const [user, setUser] = useState(buildFallback);
   const refresh = useCallback(() =>
     adminGetProfile()
       .then((data) => setUser({ name: data.name, email: data.email, photoUrl: extractPhotoUrl(data) }))
-      .catch(() => {}),
+      .catch(makeProviderErrorHandler('/management/login')),
   []);
   useEffect(() => { refresh(); }, [refresh]);
   return <UserContext.Provider value={{ user, setUser, refresh }}>{children}</UserContext.Provider>;
@@ -34,7 +62,7 @@ export function IamUserProvider({ children }) {
   const refresh = useCallback(() =>
     iamGetProfile()
       .then((data) => setUser({ name: data.name, email: data.email, photoUrl: extractPhotoUrl(data) }))
-      .catch(() => {}),
+      .catch(makeProviderErrorHandler('/management/login')),
   []);
   useEffect(() => { refresh(); }, [refresh]);
   return <UserContext.Provider value={{ user, setUser, refresh }}>{children}</UserContext.Provider>;
@@ -42,11 +70,10 @@ export function IamUserProvider({ children }) {
 
 export function UserUserProvider({ children }) {
   const [user, setUser] = useState(buildFallback);
-  // Regular users share the IAM profile endpoint — adjust if your backend differs
   const refresh = useCallback(() =>
-    iamGetProfile()
+    userGetProfile()
       .then((data) => setUser({ name: data.name, email: data.email, photoUrl: extractPhotoUrl(data) }))
-      .catch(() => {}),
+      .catch(makeProviderErrorHandler('/user/login')),
   []);
   useEffect(() => { refresh(); }, [refresh]);
   return <UserContext.Provider value={{ user, setUser, refresh }}>{children}</UserContext.Provider>;
@@ -54,6 +81,6 @@ export function UserUserProvider({ children }) {
 
 export function useUser() {
   const ctx = useContext(UserContext);
-  if (!ctx) throw new Error('useUser must be used inside a UserProvider');
+  if (!ctx) throw new Error('useUser must be inside a UserProvider');
   return ctx;
 }
